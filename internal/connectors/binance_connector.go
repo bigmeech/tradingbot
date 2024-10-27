@@ -1,9 +1,9 @@
-// connectors/binance_connector.go
 package connectors
 
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 	"trading-bot/adapters"
 	"trading-bot/clients"
 	"trading-bot/pkg/types"
@@ -16,11 +16,22 @@ type BinanceConnector struct {
 }
 
 // NewBinanceConnector initializes a BinanceConnector with Binance-specific WebSocket and REST clients.
-func NewBinanceConnector(wsClient *clients.WebSocketClient, restClient *clients.RestClient) *BinanceConnector {
-	// Initialize WebSocketStreamer with Binance-specific parser
-	streamer := adapters.NewWebSocketStreamer(wsClient, binanceMessageParser)
+func NewBinanceConnector(wsURL, restURL, apiKey string) *BinanceConnector {
+	// Set up a WebSocket client with Binance constraints
+	wsClient := clients.NewWebSocketClient(
+		wsURL,
+		24*time.Hour,   // Connection lifetime
+		3*time.Minute,  // Ping interval
+		10*time.Minute, // Pong timeout
+		10,             // Rate limit: 10 messages per second
+		200,            // Stream limit: 200 streams per connection
+	)
 
-	// Initialize RestExecutor with Binance-specific request formatter
+	// Initialize WebSocketStreamer with Binance-specific parser and stream limit
+	streamer := adapters.NewWebSocketStreamer(wsClient, binanceMessageParser, 200)
+
+	// Initialize RestExecutor with Binance-specific request formatter and REST client
+	restClient := clients.NewRestClient(restURL, apiKey)
 	executor := adapters.NewRestExecutor(restClient, binanceRequestFormatter)
 
 	return &BinanceConnector{
@@ -68,20 +79,18 @@ func binanceMessageParser(message []byte) (*types.MarketData, string, error) {
 }
 
 // ExecuteAction executes an order on Binance using the RestExecutor.
-// This function wraps `RestExecutor.ExecuteOrder` and provides Binance-specific formatting.
 func (bc *BinanceConnector) ExecuteAction(action types.ActionType, tradingPair string, amount float64) error {
 	return bc.executor.ExecuteOrder(action, tradingPair, amount)
 }
 
 // binanceRequestFormatter formats requests for the Binance REST API.
-// This function prepares the endpoint, HTTP method, and request body to place an order.
 func binanceRequestFormatter(action types.ActionType, tradingPair string, amount float64) (string, string, interface{}, error) {
 	endpoint := "/api/v3/order"
 	method := "POST"
 	orderData := map[string]interface{}{
 		"symbol":   tradingPair,
 		"side":     actionToSide(action),
-		"type":     "MARKET", // Assuming market order; modify as needed
+		"type":     "MARKET",
 		"quantity": amount,
 	}
 

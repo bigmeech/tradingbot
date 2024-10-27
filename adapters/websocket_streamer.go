@@ -1,66 +1,61 @@
+// adapters/websocket_streamer.go
 package adapters
 
 import (
 	"fmt"
-	"log"
 	"trading-bot/clients"
 	"trading-bot/pkg/types"
 )
 
-// MessageParser defines a function type for parsing WebSocket messages into MarketData and trading pairs.
+// MessageParser is a function type for parsing WebSocket messages into MarketData and trading pairs.
 type MessageParser func(message []byte) (*types.MarketData, string, error)
 
+// WebSocketStreamer manages the streaming of market data through a WebSocket connection.
 type WebSocketStreamer struct {
-	wsClient     *clients.WebSocketClient
-	stopCh       chan struct{}
-	parseMessage MessageParser
+	client        *clients.WebSocketClient
+	messageParser MessageParser
+	activeStreams int
+	maxStreams    int
 }
 
-// NewWebSocketStreamer initializes a WebSocketStreamer with a WebSocket client and a parser function.
-func NewWebSocketStreamer(wsClient *clients.WebSocketClient, parseMessage MessageParser) *WebSocketStreamer {
+// NewWebSocketStreamer initializes a WebSocketStreamer with a WebSocket client, a message parser, and a max stream limit.
+func NewWebSocketStreamer(client *clients.WebSocketClient, messageParser MessageParser, maxStreams int) *WebSocketStreamer {
 	return &WebSocketStreamer{
-		wsClient:     wsClient,
-		stopCh:       make(chan struct{}),
-		parseMessage: parseMessage,
+		client:        client,
+		messageParser: messageParser,
+		maxStreams:    maxStreams,
+		activeStreams: 0,
 	}
 }
 
-// StartStreaming begins streaming market data to the provided handler function.
+// StartStreaming begins streaming data to the handler function, using the provided message parser.
 func (ws *WebSocketStreamer) StartStreaming(handler types.MarketDataHandler) error {
-	go func() {
-		for {
-			select {
-			case <-ws.stopCh:
-				fmt.Println("WebSocketStreamer: Stopping data stream")
-				return
-			default:
-				// Read message from WebSocket
-				message, err := ws.wsClient.ReadMessage()
-				if err != nil {
-					log.Printf("Error reading from WebSocket: %v\n", err)
-					continue
-				}
+	if ws.activeStreams >= ws.maxStreams {
+		return fmt.Errorf("maximum stream limit reached")
+	}
 
-				// Use the provided parser to extract MarketData and trading pair
-				marketData, tradingPair, parseErr := ws.parseMessage(message)
-				if parseErr != nil {
-					log.Printf("Error parsing WebSocket message: %v\n", parseErr)
-					continue
-				}
-
-				// Pass parsed data to the handler
-				handler(&types.TickContext{
-					TradingPair: tradingPair,
-					MarketData:  marketData,
-				})
-			}
+	ws.activeStreams++
+	return ws.client.StartStreaming(func(data []byte) {
+		// Parse the message using the provided message parser
+		marketData, tradingPair, err := ws.messageParser(data)
+		if err != nil {
+			// Log or handle parsing errors if necessary
+			return
 		}
-	}()
-	return nil
+
+		// Call the handler with the parsed market data and trading pair
+		handler(&types.TickContext{
+			TradingPair: tradingPair,
+			MarketData:  marketData,
+		})
+	})
 }
 
-// StopStreaming stops the WebSocket data streaming by closing the stop channel.
+// StopStreaming decreases the active stream count and stops the client if no streams are active.
 func (ws *WebSocketStreamer) StopStreaming() error {
-	close(ws.stopCh)
-	return ws.wsClient.Close()
+	ws.activeStreams--
+	if ws.activeStreams == 0 {
+		return ws.client.StopStreaming()
+	}
+	return nil
 }
