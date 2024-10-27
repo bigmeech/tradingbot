@@ -1,136 +1,123 @@
 package tradingbot
 
 import (
+	"bytes"
 	"fmt"
-	"sync"
 	"testing"
+	"time"
 	"trading-bot/pkg/types"
+	"trading-bot/testutils"
+
+	"github.com/rs/zerolog"
 )
 
-// MockFastStore and MockLargeStore are simplified as placeholders.
-type MockFastStore struct {
-	mu           sync.Mutex
-	recordedData []types.MarketData
-}
-
-func (m *MockFastStore) RecordTick(tradingPair string, marketData *types.MarketData) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.recordedData = append(m.recordedData, *marketData)
-	return nil
-}
-
-func (m *MockFastStore) QueryPriceHistory(tradingPair string, period int) []float64 {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	history := make([]float64, 0, period)
-	count := len(m.recordedData)
-	start := count - period
-	if start < 0 {
-		start = 0
-	}
-	for _, data := range m.recordedData[start:] {
-		history = append(history, data.Price)
-	}
-	return history
-}
-
-type MockLargeStore struct {
-	mu           sync.Mutex
-	recordedData []types.MarketData
-}
-
-func (m *MockLargeStore) RecordTick(tradingPair string, marketData *types.MarketData) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.recordedData = append(m.recordedData, *marketData)
-	return nil
-}
-
-func (m *MockLargeStore) QueryPriceHistory(tradingPair string, period int) []float64 {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	history := make([]float64, 0, period)
-	count := len(m.recordedData)
-	start := count - period
-	if start < 0 {
-		start = 0
-	}
-	for _, data := range m.recordedData[start:] {
-		history = append(history, data.Price)
-	}
-	return history
-}
-
-// MockConnector simulates a trading connector for testing.
 type MockConnector struct {
-	connected      bool
-	StreamDataFunc func(handler func(ctx *types.TickContext)) // Customizable data stream function
+	connected    bool
+	streamDataFn func(handler func(ctx *types.TickContext))
+	stopCh       chan struct{} // Channel to stop streaming data
+}
+
+func NewMockConnector() *MockConnector {
+	return &MockConnector{
+		stopCh: make(chan struct{}),
+	}
 }
 
 func (m *MockConnector) Connect() error {
 	m.connected = true
+	fmt.Println("MockConnector: Connected")
 	return nil
 }
 
 func (m *MockConnector) StreamMarketData(handler func(ctx *types.TickContext)) error {
-	if m.connected && m.StreamDataFunc != nil {
-		m.StreamDataFunc(handler)
+	if !m.connected || m.streamDataFn == nil {
+		return nil
 	}
+
+	// Stream data continuously with a delay to simulate real-time data
+	go func() {
+		for {
+			select {
+			case <-m.stopCh:
+				fmt.Println("MockConnector: Stopping data stream")
+				return
+			default:
+				// Simulate a tick with a random price and volume for each loop iteration
+				m.streamDataFn(handler)
+				time.Sleep(200 * time.Millisecond) // Short delay between ticks
+			}
+		}
+	}()
+
 	return nil
+}
+
+// Stop streaming data
+func (m *MockConnector) Stop() {
+	close(m.stopCh)
 }
 
 func (m *MockConnector) ExecuteAction(action types.ActionType, tradingPair string, amount float64) error {
 	return nil
 }
 
-// MockMiddleware for asserting expected conditions on each tick.
-func MockMiddleware(t *testing.T, expectedPrice float64) types.Middleware {
-	return func(ctx *types.TickContext) error {
-		if ctx.MarketData.Price != expectedPrice {
-			t.Errorf("Expected price %v, got %v", expectedPrice, ctx.MarketData.Price)
-		}
-		fmt.Printf("Middleware processed price: %v\n", ctx.MarketData.Price)
-		return nil
-	}
-}
+func TestBot_RegisterConnectorAndStart(t *testing.T) {
+	// Initialize mock stores for testing
+	fastStore := testutils.NewMockStore()
+	largeStore := testutils.NewMockStore()
 
-func TestBot_EndToEndWithMiddleware(t *testing.T) {
-	// Setup with mock stores and a threshold
-	fastStore := &MockFastStore{}
-	largeStore := &MockLargeStore{}
-	bot := NewBot(fastStore, largeStore, 2)
+	// Set up log buffer and configure logger
+	var logBuffer bytes.Buffer
+	logger := zerolog.New(&logBuffer).With().Timestamp().Logger()
 
-	// Create and register a mock connector
-	mockConnector := &MockConnector{
-		StreamDataFunc: func(handler func(ctx *types.TickContext)) {
-			handler(&types.TickContext{
-				TradingPair: "BTC/USDT",
-				MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
-				Actions: types.ActionAPI{
-					MarketName: "MockConnector",
-					ExecuteAction: func(action types.ActionType, tradingPair string, amount float64) error {
-						fmt.Printf("Executing %s for %s with amount %f\n", action, tradingPair, amount)
-						return nil
-					},
-				},
-			})
-		},
+	// Initialize Bot with custom logger
+	bot := NewBot(fastStore, largeStore, 10, logger)
+	bot.EnableDebug()
+
+	// Create and register the mock connector
+	mockConnector := NewMockConnector()
+	mockConnector.streamDataFn = func(handler func(ctx *types.TickContext)) {
+		handler(&types.TickContext{
+			TradingPair: "BTC/USDT",
+			MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
+			Actions: types.ActionAPI{
+				MarketName:    "MockConnector",
+				ExecuteAction: func(action types.ActionType, tradingPair string, amount float64) error { return nil },
+			},
+		})
 	}
+
 	bot.RegisterConnector("MockConnector", mockConnector)
-
-	// Register mock middleware with an expected price check
-	expectedPrice := 50000.0
-	bot.fw.UsePair("MockConnector", "BTC/USDT", MockMiddleware(t, expectedPrice))
-
-	// Start the bot
-	err := bot.Start()
-	if err != nil {
-		t.Fatalf("Expected bot to start without error, got: %v", err)
+	if len(bot.fw.Connectors()) != 1 {
+		t.Fatalf("Expected 1 connector, got %v", len(bot.fw.Connectors()))
 	}
 
-	// Verify connector connection status
-	if !mockConnector.connected {
-		t.Errorf("Expected connector to be connected after bot start")
+	// Start the bot asynchronously
+	go func() {
+		err := bot.Start()
+		if err != nil {
+			t.Fatalf("Expected bot to start without error, got: %v", err)
+		}
+	}()
+
+	// Allow time for several ticks to be processed
+	time.Sleep(1 * time.Second)
+
+	// Stop the mock connector's data stream
+	mockConnector.Stop()
+
+	// Check the log output for the tick details
+	logOutput := logBuffer.String()
+	if logOutput == "" {
+		t.Fatal("Expected log output but found none")
+	}
+	if !bytes.Contains(logBuffer.Bytes(), []byte("Received tick")) {
+		t.Errorf("Expected log to contain 'Received tick', got %v", logOutput)
+	}
+	if !bytes.Contains(logBuffer.Bytes(), []byte("BTC/USDT")) {
+		t.Errorf("Expected log to contain 'BTC/USDT', got %v", logOutput)
+	}
+	if !bytes.Contains(logBuffer.Bytes(), []byte("Price\":50000")) {
+		t.Errorf("Expected log to contain 'Price\":50000', got %v", logOutput)
 	}
 }

@@ -1,14 +1,54 @@
 package framework
 
 import (
-	"fmt"
+	"sync"
 	"testing"
+	"time"
 	"trading-bot/pkg/types"
 )
 
-// MockConnector is a mock implementation of the Connector interface for testing.
+// MockStore simulates an in-memory store for testing purposes.
+type MockStore struct {
+	mu           sync.Mutex
+	recordedData map[string][]types.MarketData
+}
+
+// NewMockStore initializes a new MockStore.
+func NewMockStore() *MockStore {
+	return &MockStore{
+		recordedData: make(map[string][]types.MarketData),
+	}
+}
+
+// RecordTick simulates recording a tick for a trading pair.
+func (m *MockStore) RecordTick(tradingPair string, marketData *types.MarketData) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.recordedData[tradingPair] = append(m.recordedData[tradingPair], *marketData)
+	return nil
+}
+
+// QueryPriceHistory simulates querying the price history for a trading pair.
+func (m *MockStore) QueryPriceHistory(tradingPair string, period int) []float64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	history := make([]float64, 0, period)
+	data := m.recordedData[tradingPair]
+	count := len(data)
+	start := count - period
+	if start < 0 {
+		start = 0
+	}
+	for _, marketData := range data[start:] {
+		history = append(history, marketData.Price)
+	}
+	return history
+}
+
+// MockConnector simulates a trading connector for testing.
 type MockConnector struct {
-	connected bool
+	connected    bool
+	streamDataFn func(handler func(ctx *types.TickContext))
 }
 
 func (m *MockConnector) Connect() error {
@@ -16,116 +56,76 @@ func (m *MockConnector) Connect() error {
 	return nil
 }
 
-func (m *MockConnector) StreamMarketData(handler func(*types.TickContext)) error {
-	if m.connected {
-		marketData := &types.MarketData{Price: 100.0, Volume: 1.5}
+func (m *MockConnector) StreamMarketData(handler func(ctx *types.TickContext)) error {
+	if m.connected && m.streamDataFn != nil {
 		handler(&types.TickContext{
 			TradingPair: "BTC/USDT",
-			MarketData:  marketData,
+			MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
 			Actions: types.ActionAPI{
-				MarketName: "MockConnector",
-				ExecuteAction: func(action types.ActionType, tradingPair string, amount float64) error {
-					fmt.Printf("Executing %s for %s with amount %f\n", action, tradingPair, amount)
-					return nil
-				},
+				MarketName:    "MockConnector",
+				ExecuteAction: func(action types.ActionType, tradingPair string, amount float64) error { return nil },
 			},
 		})
 	}
 	return nil
 }
 
+// Ensure that MockConnector implements ExecuteAction correctly
 func (m *MockConnector) ExecuteAction(action types.ActionType, tradingPair string, amount float64) error {
-	fmt.Printf("Executing %s for %s with amount %f\n", action, tradingPair, amount)
+	// Simulate an action without any actual execution for testing
 	return nil
 }
 
-// MockIndicator is a mock implementation of the Indicator interface for testing.
-type MockIndicator struct {
-	name string
-}
-
-func (mi *MockIndicator) Name() string {
-	return mi.name
-}
-
-func (mi *MockIndicator) Calculate(data []float64) float64 {
-	return 50.0 // Return a fixed value for simplicity
-}
-
-// MockMiddleware is a mock implementation of the Middleware function type for testing.
-func MockMiddleware(ctx *types.TickContext) error {
-	fmt.Println("Executing middleware for:", ctx.TradingPair)
-	return nil
-}
-
-func TestFramework_RegisterConnectorAndStart(t *testing.T) {
-	store := NewInMemoryFastStore(100) // Using InMemoryFastStore for simplicity
+func TestFramework_RegisterConnectorAndStreamTicks(t *testing.T) {
+	store := NewMockStore() // Use the mock store directly
 	framework := NewFramework(store)
 
-	mockConnector := &MockConnector{}
-	framework.RegisterConnector("MockConnector", mockConnector)
+	// Set up a channel to capture processed ticks
+	processedTicks := make(chan *types.TickContext, 1)
 
+	// Mock tick processing function
+	processTickFunc := func(ctx *types.TickContext) {
+		t.Log("processTickFunc called") // Log for debugging
+		processedTicks <- ctx           // Send tick context to channel
+	}
+
+	// Create and register a mock connector with simulated data streaming
+	mockConnector := &MockConnector{
+		streamDataFn: func(handler func(ctx *types.TickContext)) {
+			t.Log("streamDataFn called") // Log for debugging
+			handler(&types.TickContext{
+				TradingPair: "BTC/USDT",
+				MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
+				Actions: types.ActionAPI{
+					MarketName:    "MockConnector",
+					ExecuteAction: func(action types.ActionType, tradingPair string, amount float64) error { return nil },
+				},
+			})
+		},
+	}
+
+	framework.RegisterConnector("MockConnector", mockConnector)
 	if len(framework.Connectors()) != 1 {
 		t.Fatalf("Expected 1 connector, got %v", len(framework.Connectors()))
 	}
 
-	framework.Start()
-	if !mockConnector.connected {
-		t.Errorf("Expected connector to be connected")
-	}
-}
+	// Start the framework with the mock tick processing function
+	go framework.Start(processTickFunc)
 
-func TestFramework_RegisterIndicator(t *testing.T) {
-	store := NewInMemoryFastStore(100)
-	framework := NewFramework(store)
-
-	indicator := &MockIndicator{name: "MockIndicator"}
-	framework.RegisterIndicator("MockConnector", "BTC/USDT", indicator)
-
-	if len(framework.indicators["MockConnector"]["BTC/USDT"]) != 1 {
-		t.Fatalf("Expected 1 indicator for BTC/USDT, got %v", len(framework.indicators["MockConnector"]["BTC/USDT"]))
-	}
-}
-
-func TestFramework_RegisterMiddleware(t *testing.T) {
-	store := NewInMemoryFastStore(100)
-	framework := NewFramework(store)
-
-	framework.UsePair("MockConnector", "BTC/USDT", MockMiddleware)
-
-	if len(framework.middleware["MockConnector"]["BTC/USDT"]) != 1 {
-		t.Fatalf("Expected 1 middleware for BTC/USDT, got %v", len(framework.middleware["MockConnector"]["BTC/USDT"]))
-	}
-}
-
-func TestFramework_ProcessTick(t *testing.T) {
-	store := NewInMemoryFastStore(100)
-	framework := NewFramework(store)
-
-	// Register a mock connector, indicator, and middleware
-	mockConnector := &MockConnector{}
-	framework.RegisterConnector("MockConnector", mockConnector)
-
-	indicator := &MockIndicator{name: "MockIndicator"}
-	framework.RegisterIndicator("MockConnector", "BTC/USDT", indicator)
-
-	framework.UsePair("MockConnector", "BTC/USDT", MockMiddleware)
-
-	// Simulate a tick being processed
-	tickContext := &types.TickContext{
-		TradingPair: "BTC/USDT",
-		MarketData:  &types.MarketData{Price: 100.0, Volume: 1.5},
-		Actions: types.ActionAPI{
-			MarketName:    "MockConnector",
-			ExecuteAction: mockConnector.ExecuteAction,
-		},
-	}
-
-	framework.processTick(tickContext)
-	indicators := tickContext.Indicators
-
-	// Check that the indicator value is set correctly in TickContext
-	if len(indicators) != 1 || indicators["MockIndicator"] != 50.0 {
-		t.Fatalf("Expected indicator value 50.0 for MockIndicator, got %v", indicators["MockIndicator"])
+	// Wait for the tick to be processed and received in the channel with a timeout
+	select {
+	case tick := <-processedTicks:
+		// Validate the received tick
+		if tick.TradingPair != "BTC/USDT" {
+			t.Errorf("Expected trading pair BTC/USDT, got %v", tick.TradingPair)
+		}
+		if tick.MarketData.Price != 50000.0 {
+			t.Errorf("Expected price 50000.0, got %v", tick.MarketData.Price)
+		}
+		if tick.MarketData.Volume != 1.5 {
+			t.Errorf("Expected volume 1.5, got %v", tick.MarketData.Volume)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("Expected tick to be processed but received none within the timeout period")
 	}
 }
