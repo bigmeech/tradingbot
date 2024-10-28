@@ -5,20 +5,21 @@ import (
 	"log"
 )
 
+// Framework manages connectors, indicators, and middleware for the bot.
 type Framework struct {
-	store      types.Store
-	connectors map[string]types.Connector
-	indicators map[string]map[string][]types.Indicator
-	middleware map[string]map[string][]types.Middleware
+	storeManager *StoreManager              // Manages both fast and historical data storage
+	connectors   map[string]types.Connector // Registered connectors
+	indicators   map[string]map[string][]types.Indicator
+	middleware   map[string]map[string][]types.Middleware
 }
 
-// NewFramework initializes a new Framework instance with a Store.
-func NewFramework(store types.Store) *Framework {
+// NewFramework initializes a new Framework with StoreManager and configuration.
+func NewFramework(storeManager *StoreManager) *Framework {
 	return &Framework{
-		store:      store,
-		connectors: make(map[string]types.Connector),
-		indicators: make(map[string]map[string][]types.Indicator),
-		middleware: make(map[string]map[string][]types.Middleware),
+		storeManager: storeManager,
+		connectors:   make(map[string]types.Connector),
+		indicators:   make(map[string]map[string][]types.Indicator),
+		middleware:   make(map[string]map[string][]types.Middleware),
 	}
 }
 
@@ -37,6 +38,11 @@ func (f *Framework) RegisterMiddleware(marketName, tradingPair string, mw types.
 		f.middleware[marketName] = make(map[string][]types.Middleware)
 	}
 	f.middleware[marketName][tradingPair] = append(f.middleware[marketName][tradingPair], mw)
+}
+
+// QueryPriceHistory retrieves price history for a specific market and trading pair.
+func (f *Framework) QueryPriceHistory(market, tradingPair string, period int) []float64 {
+	return f.storeManager.QueryPriceHistory(market, tradingPair, period)
 }
 
 // GetMiddleware retrieves middleware for a given market and trading pair.

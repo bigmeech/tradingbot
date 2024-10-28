@@ -65,7 +65,6 @@ func (m *MockConnector) StreamMarketData(handler func(ctx *types.TickContext)) e
 			TradingPair: "BTC/USDT",
 			MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
 			ExecuteOrder: func(orderType types.OrderType, side types.OrderSide, amount, price float64) error {
-				// Simulate order execution for testing
 				return nil
 			},
 		})
@@ -75,13 +74,18 @@ func (m *MockConnector) StreamMarketData(handler func(ctx *types.TickContext)) e
 
 // ExecuteOrder simulates executing an order for the mock connector.
 func (m *MockConnector) ExecuteOrder(orderType types.OrderType, side types.OrderSide, tradingPair string, amount, price float64) error {
-	// Simulate order execution logic for testing
 	return nil
 }
 
 func TestFramework_RegisterConnectorAndStreamTicks(t *testing.T) {
-	store := NewMockStore() // Use the mock store directly
-	framework := NewFramework(store)
+	// Initialize mock stores
+	largeStore := NewMockStore()
+	bufferSize := 10
+	threshold := 5
+
+	// Initialize StoreManager and Framework with mock stores and buffer size
+	storeManager := NewStoreManager(largeStore, bufferSize, threshold)
+	framework := NewFramework(storeManager)
 
 	// Set up a channel to capture processed ticks
 	processedTicks := make(chan *types.TickContext, 1)
@@ -101,7 +105,6 @@ func TestFramework_RegisterConnectorAndStreamTicks(t *testing.T) {
 				TradingPair: "BTC/USDT",
 				MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
 				ExecuteOrder: func(orderType types.OrderType, side types.OrderSide, amount, price float64) error {
-					// Simulate order execution for testing
 					return nil
 				},
 			})

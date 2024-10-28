@@ -97,7 +97,9 @@ type TickContext struct {
 	ExecuteOrder func(orderType OrderType, side OrderSide, amount, price float64) error
 }
 
+// MarketData represents market information for a given trading pair at a specific time.
 type MarketData struct {
-	Price  float64
-	Volume float64
+	Price  float64 // The price of the asset
+	Volume float64 // The volume of the asset traded
+	Time   int64   // Timestamp of the data
 }

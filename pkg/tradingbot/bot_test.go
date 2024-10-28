@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// MockConnector simulates a trading connector for testing purposes.
 type MockConnector struct {
 	connected    bool
 	streamDataFn func(handler func(ctx *types.TickContext))
@@ -42,7 +43,7 @@ func (m *MockConnector) StreamMarketData(handler func(ctx *types.TickContext)) e
 				fmt.Println("MockConnector: Stopping data stream")
 				return
 			default:
-				// Simulate a tick with a random price and volume for each loop iteration
+				// Simulate a tick with specific price and volume
 				m.streamDataFn(handler)
 				time.Sleep(200 * time.Millisecond) // Short delay between ticks
 			}
@@ -59,21 +60,21 @@ func (m *MockConnector) Stop() {
 
 // ExecuteOrder simulates executing an order for testing purposes.
 func (m *MockConnector) ExecuteOrder(orderType types.OrderType, side types.OrderSide, tradingPair string, amount float64, price float64) error {
-	// Simulate the execution of an order without performing any action
-	return nil
+	return nil // Simulate order execution
 }
 
 func TestBot_RegisterConnectorAndStart(t *testing.T) {
-	// Initialize mock stores for testing
-	fastStore := testutils.NewMockStore()
+	// Initialize the persistent store (largeStore) for testing
 	largeStore := testutils.NewMockStore()
 
 	// Set up log buffer and configure logger
 	var logBuffer bytes.Buffer
 	logger := zerolog.New(&logBuffer).With().Timestamp().Logger()
 
-	// Initialize Bot with custom logger
-	bot := NewBot(fastStore, largeStore, 10, logger)
+	// Initialize Bot with largeStore, bufferSize, and threshold
+	bufferSize := 10
+	threshold := 5
+	bot := NewBot(largeStore, bufferSize, threshold, logger)
 	bot.EnableDebug()
 
 	// Create and register the mock connector
@@ -84,8 +85,7 @@ func TestBot_RegisterConnectorAndStart(t *testing.T) {
 			TradingPair: "BTC/USDT",
 			MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
 			ExecuteOrder: func(orderType types.OrderType, side types.OrderSide, amount, price float64) error {
-				// Simulate order execution in the test context
-				return nil
+				return nil // Simulate order execution in the test
 			},
 		})
 	}

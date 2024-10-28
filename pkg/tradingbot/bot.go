@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/bigmeech/tradingbot/internal/framework"
 	"github.com/bigmeech/tradingbot/pkg/types"
-
 	"github.com/rs/zerolog"
 )
 
@@ -14,9 +13,11 @@ type Bot struct {
 	debugMode bool
 }
 
-// NewBot initializes a new Bot instance with configurable Store instances and threshold.
-func NewBot(fastStore, largeStore types.Store, threshold int, logger zerolog.Logger) *Bot {
-	storeManager := framework.NewStoreManager(fastStore, largeStore, threshold)
+// NewBot initializes a new Bot instance with a StoreManager.
+func NewBot(largeStore types.Store, bufferSize, threshold int, logger zerolog.Logger) *Bot {
+	// Create StoreManager
+	storeManager := framework.NewStoreManager(largeStore, bufferSize, threshold)
+
 	return &Bot{
 		fw:        framework.NewFramework(storeManager),
 		logger:    logger,
@@ -54,7 +55,7 @@ func (b *Bot) Start() error {
 	return nil
 }
 
-// ProcessTick handles incoming ticks with logging.
+// ProcessTick handles incoming ticks with logging and runs indicators on recent data.
 func (b *Bot) ProcessTick(ctx *types.TickContext) {
 	if b.debugMode {
 		b.logger.Debug().
@@ -67,8 +68,8 @@ func (b *Bot) ProcessTick(ctx *types.TickContext) {
 	// Compute and update indicators in the context
 	indicators := b.fw.GetIndicators(ctx.MarketName, ctx.TradingPair)
 	for _, indicator := range indicators {
-		period := indicator.Period() // Get the period from each indicator
-		priceHistory := ctx.Store.QueryPriceHistory(ctx.TradingPair, period)
+		period := indicator.Period()                                                    // Get the period from each indicator
+		priceHistory := b.fw.QueryPriceHistory(ctx.MarketName, ctx.TradingPair, period) // Fetch recent or historical data
 		ctx.Indicators[indicator.Name()] = indicator.Calculate(priceHistory)
 	}
 

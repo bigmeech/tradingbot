@@ -5,30 +5,7 @@ import (
 	"testing"
 )
 
-// MockFastStore is a mock implementation of FastStore for testing.
-type MockFastStore struct {
-	recordedData []types.MarketData
-}
-
-func (m *MockFastStore) RecordTick(tradingPair string, marketData *types.MarketData) error {
-	m.recordedData = append(m.recordedData, *marketData)
-	return nil
-}
-
-func (m *MockFastStore) QueryPriceHistory(tradingPair string, period int) []float64 {
-	history := []float64{}
-	count := len(m.recordedData)
-	start := count - period
-	if start < 0 {
-		start = 0
-	}
-	for _, data := range m.recordedData[start:] {
-		history = append(history, data.Price)
-	}
-	return history
-}
-
-// MockLargeStore is a mock implementation of LargeStore for testing.
+// MockLargeStore simulates a persistent store for testing.
 type MockLargeStore struct {
 	recordedData []types.MarketData
 }
@@ -39,9 +16,8 @@ func (m *MockLargeStore) RecordTick(tradingPair string, marketData *types.Market
 }
 
 func (m *MockLargeStore) QueryPriceHistory(tradingPair string, period int) []float64 {
-	history := []float64{}
-	count := len(m.recordedData)
-	start := count - period
+	history := make([]float64, 0, period)
+	start := len(m.recordedData) - period
 	if start < 0 {
 		start = 0
 	}
@@ -52,49 +28,44 @@ func (m *MockLargeStore) QueryPriceHistory(tradingPair string, period int) []flo
 }
 
 func TestStoreManager_RecordTickAndQuery(t *testing.T) {
-	fastStore := &MockFastStore{}
+	// Setup
+	bufferSize := 2 // Limit of recent data in circular buffer
+	threshold := 2  // Period threshold for fastStore vs largeStore
 	largeStore := &MockLargeStore{}
-	threshold := 2
-	manager := NewStoreManager(fastStore, largeStore, threshold)
+	manager := NewStoreManager(largeStore, bufferSize, threshold)
 
-	// Add ticks to the StoreManager
-	manager.RecordTick("BTC/USDT", &types.MarketData{Price: 100.0, Volume: 1.0})
-	manager.RecordTick("BTC/USDT", &types.MarketData{Price: 200.0, Volume: 1.0})
-	manager.RecordTick("BTC/USDT", &types.MarketData{Price: 300.0, Volume: 1.0})
+	// Record three ticks
+	manager.RecordTick("Market1", "BTC/USDT", &types.MarketData{Price: 100.0, Volume: 1.0})
+	manager.RecordTick("Market1", "BTC/USDT", &types.MarketData{Price: 200.0, Volume: 1.0})
+	manager.RecordTick("Market1", "BTC/USDT", &types.MarketData{Price: 300.0, Volume: 1.0})
 
-	// Verify that data was recorded in both stores
-	if len(fastStore.recordedData) != 3 {
-		t.Fatalf("Expected 3 entries in FastStore, got %v", len(fastStore.recordedData))
-	}
-	if len(largeStore.recordedData) != 3 {
-		t.Fatalf("Expected 3 entries in LargeStore, got %v", len(largeStore.recordedData))
-	}
-
-	// Query with period below threshold - should use FastStore
-	prices := manager.QueryPriceHistory("BTC/USDT", 2)
-	expectedFast := []float64{200.0, 300.0}
-
-	if len(prices) != len(expectedFast) {
-		t.Fatalf("Expected %v prices from FastStore, got %v", len(expectedFast), len(prices))
-	}
-
-	for i, price := range prices {
-		if price != expectedFast[i] {
-			t.Errorf("Expected price %v at index %v, got %v", expectedFast[i], i, price)
+	// Verify fastStore holds only last `bufferSize` entries (circular buffer behavior)
+	if buffer := manager.fastStore["Market1_BTC/USDT"]; buffer != nil {
+		if len(buffer.GetData(bufferSize)) != bufferSize {
+			t.Fatalf("Expected %v entries in fastStore, got %v", bufferSize, len(buffer.GetData(bufferSize)))
 		}
 	}
 
-	// Query with period above threshold - should use LargeStore
-	prices = manager.QueryPriceHistory("BTC/USDT", 3)
-	expectedLarge := []float64{100.0, 200.0, 300.0}
-
-	if len(prices) != len(expectedLarge) {
-		t.Fatalf("Expected %v prices from LargeStore, got %v", len(expectedLarge), len(prices))
+	// Verify fastStore content (should contain the two most recent prices: 200.0, 300.0)
+	expectedFastStore := []float64{200.0, 300.0}
+	fastPrices := manager.QueryPriceHistory("Market1", "BTC/USDT", threshold)
+	for i, price := range fastPrices {
+		if price != expectedFastStore[i] {
+			t.Errorf("Expected price %v at index %d in fastStore, got %v", expectedFastStore[i], i, price)
+		}
 	}
 
-	for i, price := range prices {
-		if price != expectedLarge[i] {
-			t.Errorf("Expected price %v at index %v, got %v", expectedLarge[i], i, price)
+	// Verify largeStore holds all three entries
+	if len(largeStore.recordedData) != 3 {
+		t.Fatalf("Expected 3 entries in largeStore, got %v", len(largeStore.recordedData))
+	}
+
+	// Query beyond threshold - should use largeStore
+	expectedLargeStore := []float64{100.0, 200.0, 300.0}
+	largePrices := manager.QueryPriceHistory("Market1", "BTC/USDT", 3)
+	for i, price := range largePrices {
+		if price != expectedLargeStore[i] {
+			t.Errorf("Expected price %v at index %d in largeStore, got %v", expectedLargeStore[i], i, price)
 		}
 	}
 }

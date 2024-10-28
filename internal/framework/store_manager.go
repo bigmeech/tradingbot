@@ -1,44 +1,68 @@
 package framework
 
 import (
+	"github.com/bigmeech/tradingbot/internal/store" // For CircularBuffer
 	"github.com/bigmeech/tradingbot/pkg/types"
+	"sync"
 )
 
-// StoreManager manages interactions with fast and large stores based on a time threshold.
+// StoreManager manages both fast and persistent storage for market data.
 type StoreManager struct {
-	fastStore  types.Store // Fast, in-memory store for quick access
-	largeStore types.Store // Large, persistent store for long-term storage
-	threshold  int         // Threshold (in periods) for switching between stores
+	fastStore  map[string]*store.CircularBuffer // Fast in-memory buffer for recent data
+	largeStore types.Store                      // Persistent store for historical data
+	bufferSize int                              // Configurable buffer size for each trading pair
+	threshold  int                              // Threshold period for fastStore vs largeStore
+	storeLock  sync.Mutex                       // For thread-safe access
 }
 
-// NewStoreManager initializes a new StoreManager with given fast and large stores, and a threshold.
-func NewStoreManager(fastStore, largeStore types.Store, threshold int) *StoreManager {
+// NewStoreManager initializes a StoreManager with a persistent store and buffer configuration.
+func NewStoreManager(largeStore types.Store, bufferSize int, threshold int) *StoreManager {
 	return &StoreManager{
-		fastStore:  fastStore,
+		fastStore:  make(map[string]*store.CircularBuffer),
 		largeStore: largeStore,
+		bufferSize: bufferSize,
 		threshold:  threshold,
 	}
 }
 
-// RecordTick records a tick in the fast store and optionally in the large store.
-func (s *StoreManager) RecordTick(tradingPair string, marketData *types.MarketData) error {
-	// Record in fast store for quick access
-	if err := s.fastStore.RecordTick(tradingPair, marketData); err != nil {
-		return err
+// RecordTick records a new market data point, adding it to both fastStore and largeStore.
+func (s *StoreManager) RecordTick(market, tradingPair string, data *types.MarketData) error {
+	s.storeLock.Lock()
+	defer s.storeLock.Unlock()
+
+	// Create a unique key for the market/trading pair combination
+	key := market + "_" + tradingPair
+
+	// Initialize a new CircularBuffer if one doesn't exist for the key
+	if _, exists := s.fastStore[key]; !exists {
+		s.fastStore[key] = store.NewCircularBuffer(s.bufferSize)
 	}
 
-	// Optionally, record in large store for long-term storage
-	return s.largeStore.RecordTick(tradingPair, marketData)
+	// Record the tick in the fast circular buffer
+	s.fastStore[key].Add(*data)
+
+	// Also store the tick in the largeStore for long-term storage
+	return s.largeStore.RecordTick(tradingPair, data)
 }
 
-// QueryPriceHistory retrieves price history, using the fast store if within threshold,
-// and the large store if beyond threshold.
-func (s *StoreManager) QueryPriceHistory(tradingPair string, period int) []float64 {
-	// Use fast store for recent data (within threshold)
+// QueryPriceHistory fetches data based on the period from either fastStore or largeStore.
+func (s *StoreManager) QueryPriceHistory(market, tradingPair string, period int) []float64 {
+	s.storeLock.Lock()
+	defer s.storeLock.Unlock()
+
+	// Define the key and check if recent data can be fetched from fastStore
+	key := market + "_" + tradingPair
 	if period <= s.threshold {
-		return s.fastStore.QueryPriceHistory(tradingPair, period)
+		if buffer, exists := s.fastStore[key]; exists {
+			recentData := buffer.GetData(period)
+			priceHistory := make([]float64, len(recentData))
+			for i, entry := range recentData {
+				priceHistory[i] = entry.Price
+			}
+			return priceHistory
+		}
 	}
 
-	// Use large store for older data (beyond threshold)
+	// For periods beyond threshold, fall back to the largeStore
 	return s.largeStore.QueryPriceHistory(tradingPair, period)
 }
