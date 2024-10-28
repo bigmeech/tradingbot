@@ -1,7 +1,3 @@
-Here’s a quick guide to get started with the trading bot based on the current implementation.
-
----
-
 ## Quick Start Guide: Trading Bot Framework
 
 This guide will walk you through setting up and running the trading bot, including configuring connectors, defining middleware and strategies, and executing trades.
@@ -16,15 +12,16 @@ This guide will walk you through setting up and running the trading bot, includi
 Your project folder should look like this:
 ```
 trading-bot/
-├── adapters/             # REST and WebSocket adapter implementations
-├── connectors/           # Connectors (e.g., Binance, Kraken)
+├── adapters/               # Internal adapters for REST and WebSocket
+├── clients/                # Internal clients for HTTP and WebSocket
 ├── internal/
-│   └── framework/        # Core bot framework
+│   ├── connectors/         # Exchange connectors (e.g., Binance, Kraken)
+│   ├── framework/          # Core bot framework (bot logic, store management)
+│   ├── indicators/         # Technical indicators (e.g., SMA)
+│   └── strategies/         # Trading strategies (e.g., MA crossover)
 ├── pkg/
-│   └── types/            # Common types and interfaces
-├── strategies/           # Trading strategies
-├── testutils/            # Mock utilities for testing
-└── main.go               # Entry point
+│   └── types/              # Common types and interfaces (Connector, OrderType, etc.)
+├── testutils/              # Utilities for testing
 ```
 
 ### Step 1: Define Connectors
