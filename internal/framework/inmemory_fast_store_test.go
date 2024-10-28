@@ -1,8 +1,8 @@
 package framework
 
 import (
+	"github.com/bigmeech/tradingbot/pkg/types"
 	"testing"
-	"trading-bot/pkg/types"
 )
 
 func TestInMemoryFastStore_RecordTickAndQuery(t *testing.T) {

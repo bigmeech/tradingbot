@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"trading-bot/clients"
-	"trading-bot/pkg/types"
+	"github.com/bigmeech/tradingbot/clients"
+	"github.com/bigmeech/tradingbot/pkg/types"
 )
 
 // RequestFormatter formats requests for the REST API using orderType and side.

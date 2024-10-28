@@ -1,8 +1,8 @@
 package framework
 
 import (
+	"github.com/bigmeech/tradingbot/pkg/types"
 	"log"
-	"trading-bot/pkg/types"
 )
 
 type Framework struct {

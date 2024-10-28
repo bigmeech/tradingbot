@@ -1,6 +1,6 @@
 package models
 
-import "trading-bot/pkg/types"
+import "github.com/bigmeech/tradingbot/pkg/types"
 
 type FastStore interface {
 	RecordTick(tradingPair string, marketData *types.MarketData) error

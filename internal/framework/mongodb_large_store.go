@@ -2,10 +2,10 @@ package framework
 
 import (
 	"context"
+	"github.com/bigmeech/tradingbot/pkg/types"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"time"
-	"trading-bot/pkg/types"
 )
 
 type MongoDBLargeStore struct {

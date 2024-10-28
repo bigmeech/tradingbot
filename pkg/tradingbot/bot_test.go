@@ -3,10 +3,10 @@ package tradingbot
 import (
 	"bytes"
 	"fmt"
+	"github.com/bigmeech/tradingbot/pkg/types"
+	"github.com/bigmeech/tradingbot/testutils"
 	"testing"
 	"time"
-	"trading-bot/pkg/types"
-	"trading-bot/testutils"
 
 	"github.com/rs/zerolog"
 )

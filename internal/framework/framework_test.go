@@ -1,10 +1,10 @@
 package framework
 
 import (
+	"github.com/bigmeech/tradingbot/pkg/types"
 	"sync"
 	"testing"
 	"time"
-	"trading-bot/pkg/types"
 )
 
 // MockStore simulates an in-memory store for testing purposes.

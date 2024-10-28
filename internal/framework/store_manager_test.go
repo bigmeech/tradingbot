@@ -1,8 +1,8 @@
 package framework
 
 import (
+	"github.com/bigmeech/tradingbot/pkg/types"
 	"testing"
-	"trading-bot/pkg/types"
 )
 
 // MockFastStore is a mock implementation of FastStore for testing.

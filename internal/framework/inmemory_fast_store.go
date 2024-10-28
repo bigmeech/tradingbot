@@ -1,7 +1,7 @@
 package framework
 
 import (
-	"trading-bot/pkg/types"
+	"github.com/bigmeech/tradingbot/pkg/types"
 )
 
 // InMemoryFastStore is an in-memory circular buffer optimized for fast data access.

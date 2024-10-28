@@ -2,9 +2,9 @@ package framework
 
 import (
 	"context"
+	"github.com/bigmeech/tradingbot/pkg/types"
 	"github.com/go-redis/redis/v8"
 	"strconv"
-	"trading-bot/pkg/types"
 )
 
 type RedisFastStore struct {

@@ -1,7 +1,7 @@
 package framework
 
 import (
-	"trading-bot/pkg/types"
+	"github.com/bigmeech/tradingbot/pkg/types"
 )
 
 type ActionAPI struct {

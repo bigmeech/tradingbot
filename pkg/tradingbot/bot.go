@@ -2,8 +2,8 @@ package tradingbot
 
 import (
 	"fmt"
-	"trading-bot/internal/framework"
-	"trading-bot/pkg/types"
+	"github.com/bigmeech/tradingbot/internal/framework"
+	"github.com/bigmeech/tradingbot/pkg/types"
 
 	"github.com/rs/zerolog"
 )

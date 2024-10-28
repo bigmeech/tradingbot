@@ -1,7 +1,7 @@
 package framework
 
 import (
-	"trading-bot/pkg/types"
+	"github.com/bigmeech/tradingbot/pkg/types"
 )
 
 // StoreManager manages interactions with fast and large stores based on a time threshold.

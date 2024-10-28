@@ -3,8 +3,8 @@ package adapters
 
 import (
 	"fmt"
-	"trading-bot/clients"
-	"trading-bot/pkg/types"
+	"github.com/bigmeech/tradingbot/clients"
+	"github.com/bigmeech/tradingbot/pkg/types"
 )
 
 // MessageParser is a function type for parsing WebSocket messages into MarketData and trading pairs.

@@ -3,10 +3,10 @@ package connectors
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/bigmeech/tradingbot/adapters"
+	"github.com/bigmeech/tradingbot/clients"
+	"github.com/bigmeech/tradingbot/pkg/types"
 	"time"
-	"trading-bot/adapters"
-	"trading-bot/clients"
-	"trading-bot/pkg/types"
 )
 
 // BinanceConnector encapsulates Binance-specific streaming and order execution functionality.
