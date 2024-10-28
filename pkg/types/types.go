@@ -11,6 +11,7 @@ type Connector interface {
 type Indicator interface {
 	Calculate(data []float64) float64
 	Name() string
+	Period() int
 }
 
 type Middleware func(*TickContext) error

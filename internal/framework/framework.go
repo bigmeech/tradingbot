@@ -44,8 +44,29 @@ func (f *Framework) GetMiddleware(marketName, tradingPair string) []types.Middle
 	return f.middleware[marketName][tradingPair]
 }
 
-// executeMiddleware runs all middleware for a specific market and trading pair.
+// RegisterIndicator registers an indicator for a specific market and trading pair.
+func (f *Framework) RegisterIndicator(marketName, tradingPair string, indicator types.Indicator) {
+	if f.indicators[marketName] == nil {
+		f.indicators[marketName] = make(map[string][]types.Indicator)
+	}
+	f.indicators[marketName][tradingPair] = append(f.indicators[marketName][tradingPair], indicator)
+}
+
+// GetIndicators retrieves indicators for a given market and trading pair.
+func (f *Framework) GetIndicators(marketName, tradingPair string) []types.Indicator {
+	return f.indicators[marketName][tradingPair]
+}
+
+// executeMiddleware calculates indicators and then runs all middleware for a specific market and trading pair.
 func (f *Framework) executeMiddleware(ctx *types.TickContext) error {
+	// Calculate indicators for the trading pair and store in context
+	for _, indicator := range f.GetIndicators(ctx.MarketName, ctx.TradingPair) {
+		period := indicator.Period() // Use the indicator's period to get historical data
+		priceHistory := ctx.Store.QueryPriceHistory(ctx.TradingPair, period)
+		ctx.Indicators[indicator.Name()] = indicator.Calculate(priceHistory)
+	}
+
+	// Run middleware
 	mws := f.GetMiddleware(ctx.MarketName, ctx.TradingPair)
 	for _, mw := range mws {
 		if err := mw(ctx); err != nil {
@@ -65,7 +86,7 @@ func (f *Framework) Start(processTickFunc func(ctx *types.TickContext)) {
 	for _, connector := range f.connectors {
 		go func(connector types.Connector) {
 			connector.StreamMarketData(func(ctx *types.TickContext) {
-				// Run middleware for each tick, then process the tick
+				// Calculate indicators and run middleware, then process the tick
 				if err := f.executeMiddleware(ctx); err != nil {
 					log.Printf("Middleware error for %s: %v\n", ctx.TradingPair, err)
 					return

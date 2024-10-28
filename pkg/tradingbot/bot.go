@@ -40,6 +40,11 @@ func (b *Bot) RegisterMiddleware(marketName, tradingPair string, mw types.Middle
 	b.fw.RegisterMiddleware(marketName, tradingPair, mw)
 }
 
+// RegisterIndicator registers an indicator for a specific market and trading pair.
+func (b *Bot) RegisterIndicator(marketName, tradingPair string, indicator types.Indicator) {
+	b.fw.RegisterIndicator(marketName, tradingPair, indicator)
+}
+
 // Start begins processing data from connectors and applying registered indicators and strategies.
 func (b *Bot) Start() error {
 	if len(b.fw.Connectors()) == 0 {
@@ -57,6 +62,14 @@ func (b *Bot) ProcessTick(ctx *types.TickContext) {
 			Float64("Price", ctx.MarketData.Price).
 			Float64("Volume", ctx.MarketData.Volume).
 			Msg("Received tick")
+	}
+
+	// Compute and update indicators in the context
+	indicators := b.fw.GetIndicators(ctx.MarketName, ctx.TradingPair)
+	for _, indicator := range indicators {
+		period := indicator.Period() // Get the period from each indicator
+		priceHistory := ctx.Store.QueryPriceHistory(ctx.TradingPair, period)
+		ctx.Indicators[indicator.Name()] = indicator.Calculate(priceHistory)
 	}
 
 	// Execute any middleware or strategy logic here
