@@ -8,7 +8,8 @@ import (
 	"trading-bot/pkg/types"
 )
 
-type RequestFormatter func(action types.ActionType, tradingPair string, amount float64) (string, string, interface{}, error)
+// RequestFormatter formats requests for the REST API using orderType and side.
+type RequestFormatter func(orderType types.OrderType, side types.OrderSide, tradingPair string, amount, price float64) (string, string, interface{}, error)
 
 type RestExecutor struct {
 	restClient    *clients.RestClient
@@ -24,8 +25,9 @@ func NewRestExecutor(restClient *clients.RestClient, formatRequest RequestFormat
 }
 
 // ExecuteOrder prepares and sends a request to the exchange's REST API to place an order.
-func (re *RestExecutor) ExecuteOrder(action types.ActionType, tradingPair string, amount float64) error {
-	endpoint, method, body, err := re.formatRequest(action, tradingPair, amount)
+func (re *RestExecutor) ExecuteOrder(orderType types.OrderType, side types.OrderSide, tradingPair string, amount, price float64) error {
+	// Format the request using orderType and side
+	endpoint, method, body, err := re.formatRequest(orderType, side, tradingPair, amount, price)
 	if err != nil {
 		return fmt.Errorf("failed to format request: %w", err)
 	}
@@ -39,7 +41,7 @@ func (re *RestExecutor) ExecuteOrder(action types.ActionType, tradingPair string
 		}
 	}
 
-	// Make the request using the rest client
+	// Make the request using the REST client
 	resp, err := re.restClient.DoRequest(method, endpoint, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return fmt.Errorf("failed to execute order: %w", err)

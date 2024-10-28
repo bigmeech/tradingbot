@@ -5,16 +5,16 @@ import (
 )
 
 type ActionAPI struct {
-	MarketName    string
-	ExecuteAction func(action types.ActionType, tradingPair string, amount float64) error
+	MarketName   string
+	ExecuteOrder func(orderType types.OrderType, side types.OrderSide, tradingPair string, amount float64, price float64) error
 }
 
-// Buy is a helper function to execute a buy action.
-func (a *ActionAPI) Buy(amount float64) error {
-	return a.ExecuteAction(types.ActionBuy, a.MarketName, amount)
+// Buy is a helper function to execute a market buy order.
+func (a *ActionAPI) Buy(amount float64, price float64) error {
+	return a.ExecuteOrder(types.OrderTypeMarket, types.OrderSideBuy, a.MarketName, amount, price)
 }
 
-// Sell is a helper function to execute a sell action.
-func (a *ActionAPI) Sell(amount float64) error {
-	return a.ExecuteAction(types.ActionSell, a.MarketName, amount)
+// Sell is a helper function to execute a market sell order.
+func (a *ActionAPI) Sell(amount float64, price float64) error {
+	return a.ExecuteOrder(types.OrderTypeMarket, types.OrderSideSell, a.MarketName, amount, price)
 }

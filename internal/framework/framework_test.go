@@ -51,28 +51,31 @@ type MockConnector struct {
 	streamDataFn func(handler func(ctx *types.TickContext))
 }
 
+// Connect simulates a successful connection for the mock connector.
 func (m *MockConnector) Connect() error {
 	m.connected = true
 	return nil
 }
 
+// StreamMarketData simulates streaming market data for the mock connector.
 func (m *MockConnector) StreamMarketData(handler func(ctx *types.TickContext)) error {
 	if m.connected && m.streamDataFn != nil {
 		handler(&types.TickContext{
+			MarketName:  "MockConnector",
 			TradingPair: "BTC/USDT",
 			MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
-			Actions: types.ActionAPI{
-				MarketName:    "MockConnector",
-				ExecuteAction: func(action types.ActionType, tradingPair string, amount float64) error { return nil },
+			ExecuteOrder: func(orderType types.OrderType, side types.OrderSide, amount, price float64) error {
+				// Simulate order execution for testing
+				return nil
 			},
 		})
 	}
 	return nil
 }
 
-// Ensure that MockConnector implements ExecuteAction correctly
-func (m *MockConnector) ExecuteAction(action types.ActionType, tradingPair string, amount float64) error {
-	// Simulate an action without any actual execution for testing
+// ExecuteOrder simulates executing an order for the mock connector.
+func (m *MockConnector) ExecuteOrder(orderType types.OrderType, side types.OrderSide, tradingPair string, amount, price float64) error {
+	// Simulate order execution logic for testing
 	return nil
 }
 
@@ -94,11 +97,12 @@ func TestFramework_RegisterConnectorAndStreamTicks(t *testing.T) {
 		streamDataFn: func(handler func(ctx *types.TickContext)) {
 			t.Log("streamDataFn called") // Log for debugging
 			handler(&types.TickContext{
+				MarketName:  "MockConnector",
 				TradingPair: "BTC/USDT",
 				MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
-				Actions: types.ActionAPI{
-					MarketName:    "MockConnector",
-					ExecuteAction: func(action types.ActionType, tradingPair string, amount float64) error { return nil },
+				ExecuteOrder: func(orderType types.OrderType, side types.OrderSide, amount, price float64) error {
+					// Simulate order execution for testing
+					return nil
 				},
 			})
 		},
@@ -116,6 +120,9 @@ func TestFramework_RegisterConnectorAndStreamTicks(t *testing.T) {
 	select {
 	case tick := <-processedTicks:
 		// Validate the received tick
+		if tick.MarketName != "MockConnector" {
+			t.Errorf("Expected MarketName MockConnector, got %v", tick.MarketName)
+		}
 		if tick.TradingPair != "BTC/USDT" {
 			t.Errorf("Expected trading pair BTC/USDT, got %v", tick.TradingPair)
 		}

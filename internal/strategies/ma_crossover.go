@@ -10,9 +10,17 @@ func MovingAverageCrossoverStrategy() types.Middleware {
 		longSMA := ctx.Indicators["SMA_200"]
 
 		if shortSMA > longSMA {
-			ctx.Actions.ExecuteAction(types.ActionBuy, ctx.TradingPair, 1.0)
+			// Execute a market buy order if the short SMA crosses above the long SMA
+			err := ctx.ExecuteOrder(types.OrderTypeMarket, types.OrderSideBuy, 1.0, ctx.MarketData.Price)
+			if err != nil {
+				return err
+			}
 		} else if shortSMA < longSMA {
-			ctx.Actions.ExecuteAction(types.ActionSell, ctx.TradingPair, 1.0)
+			// Execute a market sell order if the short SMA crosses below the long SMA
+			err := ctx.ExecuteOrder(types.OrderTypeMarket, types.OrderSideSell, 1.0, ctx.MarketData.Price)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil

@@ -35,6 +35,11 @@ func (b *Bot) RegisterConnector(name string, connector types.Connector) {
 	b.fw.RegisterConnector(name, connector)
 }
 
+// RegisterMiddleware adds middleware for a specific market and trading pair.
+func (b *Bot) RegisterMiddleware(marketName, tradingPair string, mw types.Middleware) {
+	b.fw.RegisterMiddleware(marketName, tradingPair, mw)
+}
+
 // Start begins processing data from connectors and applying registered indicators and strategies.
 func (b *Bot) Start() error {
 	if len(b.fw.Connectors()) == 0 {
@@ -46,7 +51,6 @@ func (b *Bot) Start() error {
 
 // ProcessTick handles incoming ticks with logging.
 func (b *Bot) ProcessTick(ctx *types.TickContext) {
-	// fmt.Println("ProcessTick called with:", ctx.TradingPair, ctx.MarketData.Price) // Debugging log
 	if b.debugMode {
 		b.logger.Debug().
 			Str("TradingPair", ctx.TradingPair).
@@ -56,7 +60,7 @@ func (b *Bot) ProcessTick(ctx *types.TickContext) {
 	}
 
 	// Execute any middleware or strategy logic here
-	for _, middleware := range b.fw.GetMiddleware(ctx.Actions.MarketName, ctx.TradingPair) {
+	for _, middleware := range b.fw.GetMiddleware(ctx.MarketName, ctx.TradingPair) {
 		if err := middleware(ctx); err != nil {
 			b.logger.Error().Err(err).Msg("Error processing middleware")
 		}

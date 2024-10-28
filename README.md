@@ -1,182 +1,148 @@
-Here’s a `README.md` for the trading bot framework, designed as a library. This README provides an overview of the project, instructions for setup, usage examples, and guidance on extending the framework with additional components.
+Here’s a quick guide to get started with the trading bot based on the current implementation.
 
 ---
 
-# Trading Bot Framework
+## Quick Start Guide: Trading Bot Framework
 
-A modular, extensible trading bot framework in Go for building automated trading strategies across multiple cryptocurrency exchanges. This framework is designed as a library that allows developers to configure exchange connectors, indicators, and strategies and run their custom trading bots.
+This guide will walk you through setting up and running the trading bot, including configuring connectors, defining middleware and strategies, and executing trades.
 
-## Features
+### Prerequisites
 
-- **Multi-Exchange Support**: Easily integrate multiple exchanges using connectors.
-- **Indicators as Configurable Components**: Supports indicators like Simple Moving Average (SMA) and Relative Strength Index (RSI).
-- **Middleware-Based Strategies**: Use strategies as middleware for flexibility in processing tick data.
-- **Data Store for Historical Analysis**: Built-in support for historical data storage and retrieval.
-- **Library Format**: Use the framework as a library in other applications, enabling full customization.
+- **Golang**: Ensure you have Go installed (version 1.16 or higher recommended).
+- **Dependencies**: Install dependencies via `go get` as required by your setup.
 
-## Installation
+### Folder Structure Overview
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/bigmeech/trading-bot.git
-   cd trading-bot
-   ```
+Your project folder should look like this:
+```
+trading-bot/
+├── adapters/             # REST and WebSocket adapter implementations
+├── connectors/           # Connectors (e.g., Binance, Kraken)
+├── internal/
+│   └── framework/        # Core bot framework
+├── pkg/
+│   └── types/            # Common types and interfaces
+├── strategies/           # Trading strategies
+├── testutils/            # Mock utilities for testing
+└── main.go               # Entry point
+```
 
-2. **Initialize Go Modules** (if not already done):
-   ```bash
-   go mod tidy
-   ```
+### Step 1: Define Connectors
 
-3. **Import the Library**: Import the `tradingbot` package in your project.
+Connectors provide access to different exchanges (e.g., Binance, Kraken) and are defined in the `connectors` folder. Each connector implements `types.Connector`, with methods for connecting to the exchange and executing orders.
 
-## Usage
+Example:
+```go
+// Create a new Binance connector instance
+binanceConnector := connectors.NewBinanceConnector("wss://binance-stream-url", "https://binance-api-url", "your-api-key")
 
-### 1. Initialize the Trading Bot
+// Register the connector with the bot
+bot.RegisterConnector("Binance", binanceConnector)
+```
 
-The following code demonstrates how to set up and run the bot in a new project’s `main.go` file:
+### Step 2: Configure Middleware and Strategies
+
+Middleware and strategies can be used to implement custom logic for processing market data ticks. Middleware is registered per market and trading pair. Here’s an example strategy based on a moving average crossover.
+
+Example strategy:
+```go
+import "trading-bot/strategies"
+
+// Register a moving average crossover strategy as middleware
+bot.RegisterMiddleware("Binance", "BTC/USDT", strategies.MovingAverageCrossoverStrategy())
+```
+
+### Step 3: Initialize the Bot
+
+Initialize the bot with fast and large stores, a threshold, and a logger. Stores handle tick data storage and retrieval.
+
+```go
+import (
+    "bytes"
+    "trading-bot/internal/framework"
+    "trading-bot/pkg/types"
+    "github.com/rs/zerolog"
+)
+
+// Initialize stores for tick data
+fastStore := framework.NewInMemoryStore()
+largeStore := framework.NewInMemoryStore()
+
+// Set up a logger
+var logBuffer bytes.Buffer
+logger := zerolog.New(&logBuffer).With().Timestamp().Logger()
+
+// Initialize the bot
+bot := tradingbot.NewBot(fastStore, largeStore, 10, logger)
+bot.EnableDebug()
+```
+
+### Step 4: Start Streaming Market Data
+
+With connectors and strategies in place, start streaming data and processing ticks.
+
+```go
+// Start the bot
+err := bot.Start()
+if err != nil {
+    log.Fatalf("Failed to start the bot: %v", err)
+}
+```
+
+### Step 5: Monitor Log Output
+
+The bot logs each tick received, including trading pair, price, and volume. Middleware and strategies log their actions, allowing you to track buy/sell executions.
+
+```shell
+cat logBuffer
+```
+
+### Example `main.go`
+
+Here’s a simple `main.go` to bring it all together:
 
 ```go
 package main
 
 import (
-    "trading-bot/internal/connectors"
-    "trading-bot/internal/indicators"
-    "trading-bot/internal/strategies"
-    "trading-bot/pkg/models"
-    "trading-bot/pkg/tradingbot"
+    "bytes"
+    "log"
+    "trading-bot/connectors"
+    "trading-bot/internal/framework"
+    "trading-bot/pkg/types"
+    "trading-bot/strategies"
+    "trading-bot/tradingbot"
+
+    "github.com/rs/zerolog"
 )
 
 func main() {
-    // Initialize data store
-    store := NewInMemoryStore()
-    bot := tradingbot.NewBot(store)
+    // Initialize stores
+    fastStore := framework.NewInMemoryStore()
+    largeStore := framework.NewInMemoryStore()
 
-    // Configure and register a Binance connector
-    binance := connectors.NewBinanceConnector("api-key", "api-secret", "wss://binance.ws", "https://binance.rest")
-    bot.RegisterConnector("Binance", binance)
+    // Set up logger
+    var logBuffer bytes.Buffer
+    logger := zerolog.New(&logBuffer).With().Timestamp().Logger()
 
-    // Register indicators for trading pair BTC/USDT on Binance
-    bot.RegisterIndicator("Binance", "BTC/USDT", &indicators.SMA{Period: 50})
-    bot.RegisterIndicator("Binance", "BTC/USDT", &indicators.SMA{Period: 200})
-    bot.RegisterIndicator("Binance", "BTC/USDT", &indicators.RSI{Period: 14})
+    // Initialize bot
+    bot := tradingbot.NewBot(fastStore, largeStore, 10, logger)
+    bot.EnableDebug()
 
-    // Add strategies (middleware) for the trading pair
-    bot.AddStrategy("Binance", "BTC/USDT", strategies.MovingAverageCrossoverStrategy())
-    bot.AddStrategy("Binance", "BTC/USDT", strategies.RSIOverboughtOversoldStrategy())
+    // Set up and register a Binance connector
+    binanceConnector := connectors.NewBinanceConnector("wss://binance-stream-url", "https://binance-api-url", "your-api-key")
+    bot.RegisterConnector("Binance", binanceConnector)
 
-    // Start the bot
+    // Register a moving average crossover strategy as middleware
+    bot.RegisterMiddleware("Binance", "BTC/USDT", strategies.MovingAverageCrossoverStrategy())
+
+    // Start bot
     if err := bot.Start(); err != nil {
-        panic(err)
+        log.Fatalf("Failed to start bot: %v", err)
     }
 }
 ```
 
-### 2. Configuration
-
-The framework relies on three main configuration areas:
-- **Connectors**: Define exchange API keys, URLs, and WebSocket URLs.
-- **Indicators**: Attach indicators to specific trading pairs for strategy use.
-- **Strategies**: Register strategies as middleware that responds to tick data and indicator values.
-
-### 3. Example Strategies
-
-1. **Moving Average Crossover Strategy**: Buys when a short SMA crosses above a long SMA and sells when it crosses below.
-
-   ```go
-   package strategies
-
-   import (
-       "trading-bot/pkg/models"
-   )
-
-   func MovingAverageCrossoverStrategy() models.Middleware {
-       return func(ctx *models.TickContext) error {
-           shortSMA := ctx.Indicators["SMA_50"]
-           longSMA := ctx.Indicators["SMA_200"]
-
-           if shortSMA > longSMA {
-               ctx.Actions.Buy(1.0)
-           } else if shortSMA < longSMA {
-               ctx.Actions.Sell(1.0)
-           }
-           return nil
-       }
-   }
-   ```
-
-2. **RSI Overbought/Oversold Strategy**: Buys when RSI is below 30 (oversold) and sells when RSI is above 70 (overbought).
-
-   ```go
-   package strategies
-
-   import (
-       "trading-bot/pkg/models"
-   )
-
-   func RSIOverboughtOversoldStrategy() models.Middleware {
-       return func(ctx *models.TickContext) error {
-           rsi := ctx.Indicators["RSI_14"]
-
-           if rsi < 30 {
-               ctx.Actions.Buy(1.0) // Buy when oversold
-           } else if rsi > 70 {
-               ctx.Actions.Sell(1.0) // Sell when overbought
-           }
-           return nil
-       }
-   }
-   ```
-
-### 4. Adding Custom Indicators
-
-To add custom indicators, implement the `models.Indicator` interface and register it in the bot.
-
-```go
-package indicators
-
-type CustomIndicator struct {
-    Period int
-}
-
-func (c *CustomIndicator) Calculate(data []float64) float64 {
-    // Custom calculation logic here
-    return result
-}
-
-func (c *CustomIndicator) Name() string {
-    return "CustomIndicator"
-}
-```
-
-Then, register it:
-
-```go
-bot.RegisterIndicator("Binance", "BTC/USDT", &indicators.CustomIndicator{Period: 14})
-```
-
-## Extending the Framework
-
-### Adding a New Connector
-
-1. Implement the `models.Connector` interface in `internal/connectors/`.
-2. Register the connector using `bot.RegisterConnector()`.
-
-### Adding New Strategies
-
-1. Create a new strategy in `internal/strategies/` as a `models.Middleware`.
-2. Register the strategy using `bot.AddStrategy()`.
-
-## Contributing
-
-If you'd like to contribute:
-1. Fork the repository.
-2. Create a new branch for your feature.
-3. Open a pull request with a detailed description of your changes.
-
-## License
-
-This project is licensed under the MIT License.
-
 ---
 
-This README provides essential information on setting up and configuring the library, allowing users to quickly integrate, extend, and run their own trading bot configurations.
+Happy trading!

@@ -42,11 +42,10 @@ func NewBinanceConnector(wsURL, restURL, apiKey string) *BinanceConnector {
 
 // StartStreaming begins streaming Binance market data and processes each tick.
 func (bc *BinanceConnector) StartStreaming(handler types.MarketDataHandler) error {
-	// Wrap the handler to add Binance-specific actions
 	return bc.streamer.StartStreaming(func(ctx *types.TickContext) {
-		ctx.Actions = types.ActionAPI{
-			MarketName:    "Binance",
-			ExecuteAction: bc.ExecuteAction,
+		// Wrap bc.ExecuteOrder with a compatible function signature for ctx.ExecuteOrder
+		ctx.ExecuteOrder = func(orderType types.OrderType, side types.OrderSide, amount, price float64) error {
+			return bc.ExecuteOrder(orderType, side, ctx.TradingPair, amount, price)
 		}
 		handler(ctx)
 	})
@@ -78,29 +77,26 @@ func binanceMessageParser(message []byte) (*types.MarketData, string, error) {
 	}, tradingPair, nil
 }
 
-// ExecuteAction executes an order on Binance using the RestExecutor.
-func (bc *BinanceConnector) ExecuteAction(action types.ActionType, tradingPair string, amount float64) error {
-	return bc.executor.ExecuteOrder(action, tradingPair, amount)
+// ExecuteOrder places an order on Binance with the specified type and side.
+func (bc *BinanceConnector) ExecuteOrder(orderType types.OrderType, side types.OrderSide, tradingPair string, amount, price float64) error {
+	return bc.executor.ExecuteOrder(orderType, side, tradingPair, amount, price)
 }
 
 // binanceRequestFormatter formats requests for the Binance REST API.
-func binanceRequestFormatter(action types.ActionType, tradingPair string, amount float64) (string, string, interface{}, error) {
+func binanceRequestFormatter(orderType types.OrderType, side types.OrderSide, tradingPair string, amount, price float64) (string, string, interface{}, error) {
 	endpoint := "/api/v3/order"
 	method := "POST"
 	orderData := map[string]interface{}{
 		"symbol":   tradingPair,
-		"side":     actionToSide(action),
-		"type":     "MARKET",
+		"side":     string(side),      // Use the side directly as "BUY" or "SELL"
+		"type":     string(orderType), // Order type (e.g., "MARKET", "LIMIT")
 		"quantity": amount,
 	}
 
-	return endpoint, method, orderData, nil
-}
-
-// actionToSide converts action type to the side string used by Binance ("BUY" or "SELL").
-func actionToSide(action types.ActionType) string {
-	if action == types.ActionBuy {
-		return "BUY"
+	// Include price for order types that require it (e.g., LIMIT)
+	if orderType == types.OrderTypeLimit || orderType == types.OrderTypeStopLossLimit || orderType == types.OrderTypeTakeProfitLimit {
+		orderData["price"] = price
 	}
-	return "SELL"
+
+	return endpoint, method, orderData, nil
 }

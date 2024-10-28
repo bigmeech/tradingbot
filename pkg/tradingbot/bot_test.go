@@ -57,7 +57,9 @@ func (m *MockConnector) Stop() {
 	close(m.stopCh)
 }
 
-func (m *MockConnector) ExecuteAction(action types.ActionType, tradingPair string, amount float64) error {
+// ExecuteOrder simulates executing an order for testing purposes.
+func (m *MockConnector) ExecuteOrder(orderType types.OrderType, side types.OrderSide, tradingPair string, amount float64, price float64) error {
+	// Simulate the execution of an order without performing any action
 	return nil
 }
 
@@ -78,11 +80,12 @@ func TestBot_RegisterConnectorAndStart(t *testing.T) {
 	mockConnector := NewMockConnector()
 	mockConnector.streamDataFn = func(handler func(ctx *types.TickContext)) {
 		handler(&types.TickContext{
+			MarketName:  "MockConnector",
 			TradingPair: "BTC/USDT",
 			MarketData:  &types.MarketData{Price: 50000.0, Volume: 1.5},
-			Actions: types.ActionAPI{
-				MarketName:    "MockConnector",
-				ExecuteAction: func(action types.ActionType, tradingPair string, amount float64) error { return nil },
+			ExecuteOrder: func(orderType types.OrderType, side types.OrderSide, amount, price float64) error {
+				// Simulate order execution in the test context
+				return nil
 			},
 		})
 	}
