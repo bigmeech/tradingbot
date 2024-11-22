@@ -79,4 +79,4 @@ With an optimized setup and capital of **$10,000 per instance**, daily potential
 
 **Total Expected Daily Earnings (10 Instances)**: **$300 - $2,000**.
 
-By scaling both strategies across different assets and markets, your trading bot framework can maximize cumulative daily returns while balancing the risk exposure across multiple assets and trading styles. This approach can serve as a diversified and resilient automated trading operation.
+By scaling both strategies across different assets and markets, your setup can maximize cumulative daily returns while balancing the risk exposure across multiple assets and trading styles. This approach can serve as a diversified and resilient automated trading operation.

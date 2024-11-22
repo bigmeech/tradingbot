@@ -1,7 +1,3 @@
-Here's a detailed README for the `Strategies` component, explaining its purpose, setup, and example implementations. This document can guide developers on how to define, register, and use strategies (middleware) within the bot framework.
-
----
-
 # Strategies Documentation
 
 The `Strategies` component in the trading bot framework defines the logic for making trading decisions based on incoming market data (ticks). Strategies analyze real-time data and technical indicators to identify trading signals, such as buy or sell opportunities, which are then executed via the bot's connectors.

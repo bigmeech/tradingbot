@@ -1,7 +1,3 @@
-Here's a comprehensive README for the `Indicators` component, explaining its purpose, setup, and example implementations. This README will guide developers on how to define, compute, and use indicators within the bot framework.
-
----
-
 # Indicators Documentation
 
 The `Indicators` component in the trading bot framework provides tools to calculate and track technical indicators based on market data. These indicators serve as valuable inputs for strategies, helping to identify market trends, momentum, and potential buy/sell signals.

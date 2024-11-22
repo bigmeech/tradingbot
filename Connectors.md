@@ -1,7 +1,3 @@
-Here's comprehensive documentation for the `Connector` component, explaining its purpose, usage, and example implementations. This README can be placed in the `connectors` directory or be part of a larger project README to help developers understand how to use and implement connectors.
-
----
-
 # Connector Documentation
 
 The `Connector` component in the trading bot framework is responsible for interacting with exchanges (e.g., Binance, Kraken) to stream market data and execute trade orders. Each connector manages the connection with a specific exchange, fetches real-time market data, and provides order execution capabilities.
@@ -216,5 +212,3 @@ func main() {
 - **Interface**: The `Connector` interface provides a standard structure for connecting, streaming data, and executing orders.
 - **Implementation**: Each exchange requires a custom connector (e.g., `BinanceConnector`, `KrakenConnector`) to handle exchange-specific data formats and order processes.
 - **Integration with Bot**: Connectors are registered with the bot, which uses them to receive real-time data and execute trades based on strategy outputs.
-
-This modular design makes it easy to add new connectors for additional exchanges, ensuring that the bot can interact with multiple markets seamlessly.
