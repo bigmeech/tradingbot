@@ -12,7 +12,7 @@ type MessageParser func(message []byte) (*types.MarketData, string, error)
 
 // WebSocketStreamer manages the streaming of market data through a WebSocket connection.
 type WebSocketStreamer struct {
-	client        *clients.WebSocketClient
+	Client        *clients.WebSocketClient
 	messageParser MessageParser
 	activeStreams int
 	maxStreams    int
@@ -21,7 +21,7 @@ type WebSocketStreamer struct {
 // NewWebSocketStreamer initializes a WebSocketStreamer with a WebSocket client, a message parser, and a max stream limit.
 func NewWebSocketStreamer(client *clients.WebSocketClient, messageParser MessageParser, maxStreams int) *WebSocketStreamer {
 	return &WebSocketStreamer{
-		client:        client,
+		Client:        client,
 		messageParser: messageParser,
 		maxStreams:    maxStreams,
 		activeStreams: 0,
@@ -35,7 +35,7 @@ func (ws *WebSocketStreamer) StartStreaming(handler types.MarketDataHandler) err
 	}
 
 	ws.activeStreams++
-	return ws.client.StartStreaming(func(data []byte) {
+	return ws.Client.StartStreaming(func(url string, data []byte) {
 		// Parse the message using the provided message parser
 		marketData, tradingPair, err := ws.messageParser(data)
 		if err != nil {
@@ -45,6 +45,7 @@ func (ws *WebSocketStreamer) StartStreaming(handler types.MarketDataHandler) err
 
 		// Call the handler with the parsed market data and trading pair
 		handler(&types.TickContext{
+			MarketUrl:   url,
 			TradingPair: tradingPair,
 			MarketData:  marketData,
 		})
@@ -55,7 +56,7 @@ func (ws *WebSocketStreamer) StartStreaming(handler types.MarketDataHandler) err
 func (ws *WebSocketStreamer) StopStreaming() error {
 	ws.activeStreams--
 	if ws.activeStreams == 0 {
-		return ws.client.StopStreaming()
+		return ws.Client.StopStreaming()
 	}
 	return nil
 }

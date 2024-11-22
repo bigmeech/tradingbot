@@ -1,11 +1,12 @@
 package types
 
 type Connector interface {
-	Connect() error
-	StreamMarketData(func(*TickContext)) error
+	StreamMarketData(handler func(ctx *TickContext)) error
+	StopStreaming() error
+	ExecuteOrder(orderType OrderType, side OrderSide, tradingPair string, amount float64, price float64) error
 
-	// ExecuteOrder places an order with the specified type, side, amount, and price.
-	ExecuteOrder(orderType OrderType, side OrderSide, tradingPair string, amount, price float64) error
+	// Optional method: Returns a unique identifier for the connector, such as a URL or name.
+	GetIdentifier() string
 }
 
 type Indicator interface {
@@ -87,6 +88,7 @@ const (
 )
 
 type TickContext struct {
+	MarketUrl   string
 	MarketName  string
 	TradingPair string
 	MarketData  *MarketData

@@ -57,6 +57,10 @@ func (c *WebSocketClient) Connect() error {
 	return nil
 }
 
+func (c *WebSocketClient) GetConnectionUrl() string {
+	return c.url
+}
+
 // manageConnection handles automatic reconnection, ping/pong, and connection lifetime limits.
 func (c *WebSocketClient) manageConnection() {
 	go c.pingHandler()
@@ -113,7 +117,7 @@ func (c *WebSocketClient) reconnect() {
 }
 
 // StartStreaming manages stream subscriptions, enforcing a limit on the maximum number of streams.
-func (c *WebSocketClient) StartStreaming(handler func([]byte)) error {
+func (c *WebSocketClient) StartStreaming(handler func(string, []byte)) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -134,7 +138,7 @@ func (c *WebSocketClient) StartStreaming(handler func([]byte)) error {
 					c.reconnect()
 					continue
 				}
-				handler(message)
+				handler(c.url, message)
 			}
 		}
 	}()

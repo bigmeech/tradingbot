@@ -9,6 +9,7 @@ import (
 type Framework struct {
 	storeManager *StoreManager              // Manages both fast and historical data storage
 	connectors   map[string]types.Connector // Registered connectors
+	idToMarket   map[string]string          // Map to track market names by WebSocket URL
 	indicators   map[string]map[string][]types.Indicator
 	middleware   map[string]map[string][]types.Middleware
 }
@@ -18,18 +19,23 @@ func NewFramework(storeManager *StoreManager) *Framework {
 	return &Framework{
 		storeManager: storeManager,
 		connectors:   make(map[string]types.Connector),
+		idToMarket:   make(map[string]string),
 		indicators:   make(map[string]map[string][]types.Indicator),
 		middleware:   make(map[string]map[string][]types.Middleware),
 	}
 }
 
-// RegisterConnector registers a connector and handles connection errors.
+// RegisterConnector registers a connector with a unique identifier.
 func (f *Framework) RegisterConnector(name string, connector types.Connector) {
-	if err := connector.Connect(); err != nil {
-		log.Printf("Failed to connect to %s: %v\n", name, err)
-		return
+	identifier := ""
+	if idProvider, ok := connector.(interface{ GetIdentifier() string }); ok {
+		identifier = idProvider.GetIdentifier()
+	}
+	if identifier != "" {
+		f.idToMarket[identifier] = name
 	}
 	f.connectors[name] = connector
+	log.Printf("Connector %s registered successfully with identifier %s.", name, identifier)
 }
 
 // RegisterMiddleware adds middleware for a specific market and trading pair.
@@ -68,7 +74,7 @@ func (f *Framework) executeMiddleware(ctx *types.TickContext) error {
 	// Calculate indicators for the trading pair and store in context
 	for _, indicator := range f.GetIndicators(ctx.MarketName, ctx.TradingPair) {
 		period := indicator.Period() // Use the indicator's period to get historical data
-		priceHistory := ctx.Store.QueryPriceHistory(ctx.TradingPair, period)
+		priceHistory := f.QueryPriceHistory(ctx.MarketName, ctx.TradingPair, period)
 		ctx.Indicators[indicator.Name()] = indicator.Calculate(priceHistory)
 	}
 
@@ -89,9 +95,12 @@ func (f *Framework) Connectors() map[string]types.Connector {
 
 // Start initiates the connectors, applying middleware to each tick through processTickFunc.
 func (f *Framework) Start(processTickFunc func(ctx *types.TickContext)) {
-	for _, connector := range f.connectors {
-		go func(connector types.Connector) {
+	for wsURL, connector := range f.connectors {
+		go func(connector types.Connector, wsURL string) {
 			connector.StreamMarketData(func(ctx *types.TickContext) {
+				// Set MarketName in TickContext based on WebSocket URL
+				ctx.MarketName = f.idToMarket[ctx.MarketUrl]
+
 				// Calculate indicators and run middleware, then process the tick
 				if err := f.executeMiddleware(ctx); err != nil {
 					log.Printf("Middleware error for %s: %v\n", ctx.TradingPair, err)
@@ -99,6 +108,6 @@ func (f *Framework) Start(processTickFunc func(ctx *types.TickContext)) {
 				}
 				processTickFunc(ctx)
 			})
-		}(connector)
+		}(connector, wsURL)
 	}
 }

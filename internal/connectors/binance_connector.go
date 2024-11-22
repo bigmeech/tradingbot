@@ -40,10 +40,10 @@ func NewBinanceConnector(wsURL, restURL, apiKey string) *BinanceConnector {
 	}
 }
 
-// StartStreaming begins streaming Binance market data and processes each tick.
-func (bc *BinanceConnector) StartStreaming(handler types.MarketDataHandler) error {
+// StreamMarketData begins streaming Binance market data and processes each tick.
+func (bc *BinanceConnector) StreamMarketData(handler func(ctx *types.TickContext)) error {
 	return bc.streamer.StartStreaming(func(ctx *types.TickContext) {
-		// Wrap bc.ExecuteOrder with a compatible function signature for ctx.ExecuteOrder
+		// Wrap ExecuteOrder function in TickContext
 		ctx.ExecuteOrder = func(orderType types.OrderType, side types.OrderSide, amount, price float64) error {
 			return bc.ExecuteOrder(orderType, side, ctx.TradingPair, amount, price)
 		}

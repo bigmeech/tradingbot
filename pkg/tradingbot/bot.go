@@ -3,6 +3,7 @@ package tradingbot
 import (
 	"fmt"
 	"github.com/bigmeech/tradingbot/internal/framework"
+	"github.com/bigmeech/tradingbot/internal/store"
 	"github.com/bigmeech/tradingbot/pkg/types"
 	"github.com/rs/zerolog"
 )
@@ -14,7 +15,7 @@ type Bot struct {
 }
 
 // NewBot initializes a new Bot instance with a StoreManager.
-func NewBot(largeStore types.Store, bufferSize, threshold int, logger zerolog.Logger) *Bot {
+func NewBot(largeStore *store.MongoDBStore, bufferSize, threshold int, logger zerolog.Logger) *Bot {
 	// Create StoreManager
 	storeManager := framework.NewStoreManager(largeStore, bufferSize, threshold)
 
