@@ -7,23 +7,6 @@ This guide will walk you through setting up and running the trading bot, includi
 - **Golang**: Ensure you have Go installed (version 1.16 or higher recommended).
 - **Dependencies**: Install dependencies via `go get` as required by your setup.
 
-### Folder Structure Overview
-
-Your project folder should look like this:
-```
-trading-bot/
-├── adapters/               # Internal adapters for REST and WebSocket
-├── clients/                # Internal clients for HTTP and WebSocket
-├── internal/
-│   ├── connectors/         # Exchange connectors (e.g., Binance, Kraken)
-│   ├── framework/          # Core bot framework (bot logic, store management)
-│   ├── indicators/         # Technical indicators (e.g., SMA)
-│   └── strategies/         # Trading strategies (e.g., MA crossover)
-├── pkg/
-│   └── types/              # Common types and interfaces (Connector, OrderType, etc.)
-├── testutils/              # Utilities for testing
-```
-
 ### Step 1: Define Connectors
 
 Connectors provide access to different exchanges (e.g., Binance, Kraken) and are defined in the `connectors` folder. Each connector implements `types.Connector`, with methods for connecting to the exchange and executing orders.
